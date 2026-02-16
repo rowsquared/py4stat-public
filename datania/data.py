@@ -1,10 +1,209 @@
 import pandas as pd
 import numpy as np
-from typing import Optional, List, Literal
+from typing import Optional, List, Literal, Callable
 from datetime import datetime, timedelta
+from io import StringIO
+from functools import wraps
 import random
+from pandas.api.types import is_bool_dtype, is_integer_dtype, is_categorical_dtype, is_object_dtype
 
 
+def as_csv_file(func: Callable[..., pd.DataFrame]) -> Callable[..., StringIO]:
+    """
+    Decorator that converts a DataFrame-returning function to return a CSV StringIO.
+
+    This simulates reading from a real CSV file, introducing realistic
+    type inference issues that students will encounter with real data.
+
+    Usage:
+        @as_csv_file
+        def generate_census_data(...):
+            ...
+            return pd.DataFrame(records)
+
+        # Now returns StringIO instead of DataFrame
+        csv_file = generate_census_data(n_persons=100)
+        df = pd.read_csv(csv_file)  # Must use pd.read_csv()
+
+    Note: internal code that needs the raw DataFrame can call the function with
+    _return_df=True to bypass CSV conversion.
+    """
+
+    @wraps(func)
+    def wrapper(*args, **kwargs) -> pd.DataFrame | StringIO:
+        # Internal callers can request the original DataFrame by passing this kwarg.
+        return_df = kwargs.pop("_return_df", False)
+        df = func(*args, **kwargs)
+        if return_df:
+            return df
+        csv_buffer = StringIO()
+        df.to_csv(csv_buffer, index=False)
+        csv_buffer.seek(0)  # Reset to beginning for reading
+        return csv_buffer
+
+    return wrapper
+
+
+def as_csv_file_with_issues(
+        encoding: str = 'utf-8',
+        add_bom: bool = False,
+        delimiter: str = ',',
+        line_ending: str = '\n'
+) -> Callable:
+    """
+    Decorator factory for CSV conversion with configurable export issues.
+
+    Parameters:
+        encoding: File encoding (utf-8, latin-1, cp1252, etc.)
+        add_bom: Add UTF-8 BOM character (common in Excel exports)
+        delimiter: Field separator (',' or ';' or '\t')
+        line_ending: Line ending ('\n' or '\r\n' for Windows)
+
+    Usage:
+        @as_csv_file_with_issues(delimiter=';', add_bom=True)
+        def generate_european_csv(...):
+            return generate_census_data(...)
+    """
+
+    def decorator(func: Callable[..., pd.DataFrame]) -> Callable[..., StringIO]:
+        @wraps(func)
+        def wrapper(*args, **kwargs) -> StringIO:
+            df = func(*args, **kwargs)
+            csv_buffer = StringIO()
+
+            # Add BOM if requested (common Excel issue)
+            if add_bom:
+                csv_buffer.write('\ufeff')
+
+            df.to_csv(csv_buffer, index=False, sep=delimiter, lineterminator=line_ending)
+            csv_buffer.seek(0)
+            return csv_buffer
+
+        return wrapper
+
+    return decorator
+
+
+def as_data_with_issues(func: Callable[..., pd.DataFrame]) -> Callable[..., pd.DataFrame]:
+
+    @wraps(func)
+    def wrapper(*args, **kwargs) :
+        missing_rate = kwargs.pop("_missing_rate", 0.05)
+        duplicate_rate = kwargs.pop("_duplicate_rate", 0.02)
+        outlier_rate = kwargs.pop("_outlier_rate", 0.01)
+        typo_rate = kwargs.pop("_typo_rate", 0.03)
+        seed = kwargs.pop("_seed", 2024)
+
+        kwargs["_return_df"] = True
+        df = func(*args, **kwargs)
+
+        """
+        Introduce realistic data quality issues into a clean DataFrame.
+    
+        Parameters:
+            df: Clean DataFrame to mess up
+            missing_rate: Proportion of cells to make missing (0-1)
+            duplicate_rate: Proportion of rows to duplicate (0-1)
+            outlier_rate: Proportion of numeric values to make outliers (0-1)
+            typo_rate: Proportion of string values to introduce typos (0-1)
+            seed: Random seed for reproducibility
+    
+        Returns:
+            DataFrame with data quality issues
+        """
+        np.random.seed(seed)
+        random.seed(seed)
+
+        df_dirty = df.copy()
+        n_rows = len(df_dirty)
+
+        # 1. Introduce missing values
+        for col in df_dirty.columns:
+            if col.endswith('_id'):  # Don't mess with IDs
+                continue
+            n_missing = int(n_rows * missing_rate)
+            missing_idx = np.random.choice(n_rows, size=n_missing, replace=False)
+
+            # inside the loop, replace the single assignment with this block
+            col_series = df_dirty[col]
+
+            if is_bool_dtype(col_series):
+                # use pandas nullable boolean dtype and pd.NA
+                df_dirty[col] = col_series.astype("boolean")
+                df_dirty.loc[missing_idx, col] = pd.NA
+            elif is_integer_dtype(col_series):
+                # use pandas nullable integer dtype
+                df_dirty[col] = col_series.astype("Int64")
+                df_dirty.loc[missing_idx, col] = pd.NA
+            elif is_categorical_dtype(col_series):
+                # ensure NA is an allowed category then assign
+                df_dirty[col] = col_series.cat.add_categories([pd.NA])
+                df_dirty.loc[missing_idx, col] = pd.NA
+            elif is_object_dtype(col_series):
+                # object can hold np.nan
+                df_dirty.loc[missing_idx, col] = np.nan
+            else:
+                # float/string/etc. - np.nan is fine for floats; for pandas string dtype you may prefer pd.NA
+                try:
+                    df_dirty.loc[missing_idx, col] = np.nan
+                except (TypeError, ValueError):
+                    raise
+
+
+        # 2. Add duplicate rows
+        n_duplicates = int(n_rows * duplicate_rate)
+        if n_duplicates > 0:
+            dup_idx = np.random.choice(n_rows, size=n_duplicates, replace=False)
+            duplicates = df_dirty.iloc[dup_idx].copy()
+            df_dirty = pd.concat([df_dirty, duplicates], ignore_index=True)
+
+        # 3. Introduce outliers in numeric columns
+        numeric_cols = df_dirty.select_dtypes(include=[np.number]).columns
+        for col in numeric_cols:
+            if col.endswith('_id') or 'code' in col.lower():
+                continue
+            n_outliers = int(len(df_dirty) * outlier_rate)
+            outlier_idx = np.random.choice(len(df_dirty), size=n_outliers, replace=False)
+
+            col_series = df_dirty[col]
+
+
+            # Make outliers 5-10x the mean
+            col_mean = df_dirty[col].mean()
+            for idx in outlier_idx:
+                if not pd.isna(df_dirty.loc[idx, col]):
+                    multiplier = np.random.choice([0.01, 5, 10, -1])  # Tiny, huge, or negative
+                    outlier_value = col_mean * multiplier
+                    if is_integer_dtype(col_series):
+                        outlier_value = int(outlier_value)
+                    df_dirty.loc[idx, col] = outlier_value
+
+        # 4. Introduce typos in string columns
+        string_cols = df_dirty.select_dtypes(include=['object']).columns
+        typo_variations = {
+            'Urban': ['urban', 'URBAN', 'Urbaan', 'Urbn'],
+            'Rural': ['rural', 'RURAL', 'Rurall', 'Rurl'],
+            'Male': ['male', 'MALE', 'Mal', 'M'],
+            'Female': ['female', 'FEMALE', 'Femal', 'F'],
+            'Employed': ['employed', 'EMPLOYED', 'Employeed', 'Emplyd'],
+            'Unemployed': ['unemployed', 'UNEMPLOYED', 'Unemployd'],
+        }
+
+        for col in string_cols:
+            if col.endswith('_id') or 'code' in col.lower():
+                continue
+            n_typos = int(len(df_dirty) * typo_rate)
+            typo_idx = np.random.choice(len(df_dirty), size=n_typos, replace=False)
+            for idx in typo_idx:
+                val = df_dirty.loc[idx, col]
+                if pd.notna(val) and val in typo_variations:
+                    df_dirty.loc[idx, col] = random.choice(typo_variations[val])
+
+        return df_dirty
+    return wrapper
+
+
+@as_csv_file
 def get_provinces() -> pd.DataFrame:
     """Return Datania province reference data."""
     data = {
@@ -20,6 +219,7 @@ def get_provinces() -> pd.DataFrame:
     return pd.DataFrame(data)
 
 
+@as_csv_file
 def get_districts() -> pd.DataFrame:
     """Return Datania district reference data."""
     districts = {
@@ -36,6 +236,8 @@ def get_districts() -> pd.DataFrame:
             rows.append({'province_code': province_code, 'district_name': district})
     return pd.DataFrame(rows)
 
+
+@as_csv_file
 def get_cities() -> pd.DataFrame:
     """Return Datania major cities reference data."""
     data = {
@@ -51,6 +253,7 @@ def get_cities() -> pd.DataFrame:
     return pd.DataFrame(data)
 
 
+@as_csv_file
 def generate_census_data(
         n_persons: int = 1000,
         seed: int = 42
@@ -68,8 +271,8 @@ def generate_census_data(
     np.random.seed(seed)
     random.seed(seed)
 
-    provinces = get_provinces()
-    districts = get_districts()
+    provinces = get_provinces(_return_df=True)
+    districts = get_districts(_return_df=True)
 
     # Province weights based on population
     province_weights = provinces['population'] / provinces['population'].sum()
@@ -184,7 +387,12 @@ def generate_census_data(
 
     return pd.DataFrame(records)
 
+@as_csv_file
+@as_data_with_issues
+def generate_census_data_with_issues(*args, **kwargs):
+    return generate_census_data(*args, **kwargs)
 
+@as_csv_file
 def generate_household_survey(
         n_households: int = 500,
         survey_year: int = 2025,
@@ -204,8 +412,8 @@ def generate_household_survey(
     np.random.seed(seed)
     random.seed(seed)
 
-    provinces = get_provinces()
-    districts = get_districts()
+    provinces = get_provinces(_return_df=True)
+    districts = get_districts(_return_df=True)
 
     province_weights = provinces['population'] / provinces['population'].sum()
 
@@ -303,7 +511,12 @@ def generate_household_survey(
 
     return pd.DataFrame(records)
 
+@as_csv_file
+@as_data_with_issues
+def generate_household_survey_with_issues(*args, **kwargs):
+    return generate_household_survey(*args, **kwargs)
 
+@as_csv_file
 def generate_labour_force_survey(
         n_persons: int = 1000,
         year: int = 2026,
@@ -325,8 +538,8 @@ def generate_labour_force_survey(
     np.random.seed(seed)
     random.seed(seed)
 
-    provinces = get_provinces()
-    districts = get_districts()
+    provinces = get_provinces(_return_df=True)
+    districts = get_districts(_return_df=True)
 
     province_weights = provinces['population'] / provinces['population'].sum()
 
@@ -524,6 +737,7 @@ def generate_labour_force_survey(
     return pd.DataFrame(records)
 
 
+@as_csv_file
 def generate_business_register(
         n_businesses: int = 500,
         reference_year: int = 2025,
@@ -543,9 +757,9 @@ def generate_business_register(
     np.random.seed(seed)
     random.seed(seed)
 
-    provinces = get_provinces()
-    districts = get_districts()
-    cities = get_cities()
+    provinces = get_provinces(_return_df=True)
+    districts = get_districts(_return_df=True)
+    cities = get_cities(_return_df=True)
 
     # Business concentration in urban/industrial areas
     province_weights = np.array([0.10, 0.25, 0.15, 0.08, 0.30, 0.12])  # Heavier in CTR, STH
@@ -693,6 +907,7 @@ def generate_business_register(
     return pd.DataFrame(records)
 
 
+@as_csv_file
 def generate_price_data(
         n_months: int = 12,
         start_year: int = 2025,
@@ -714,8 +929,8 @@ def generate_price_data(
     np.random.seed(seed)
     random.seed(seed)
 
-    provinces = get_provinces()
-    cities = get_cities()
+    provinces = get_provinces(_return_df=True)
+    cities = get_cities(_return_df=True)
 
     # Products with base prices (DKW), categories, and seasonality
     products = [
@@ -825,6 +1040,7 @@ def generate_price_data(
     return pd.DataFrame(records)
 
 
+@as_csv_file
 def generate_agricultural_survey(
         n_farms: int = 500,
         year: int = 2025,
@@ -844,8 +1060,8 @@ def generate_agricultural_survey(
     np.random.seed(seed)
     random.seed(seed)
 
-    provinces = get_provinces()
-    districts = get_districts()
+    provinces = get_provinces(_return_df=True)
+    districts = get_districts(_return_df=True)
 
     # Agricultural provinces have higher weights
     province_weights = np.array([0.25, 0.10, 0.10, 0.20, 0.05, 0.30])  # NTH, WST, LKS more agricultural
@@ -960,4 +1176,5 @@ def generate_agricultural_survey(
 
 # Guard the side-effect printing at module import
 if __name__ == "__main__":
-    print(get_cities())
+    # Request the DataFrame explicitly for printing
+    print(get_cities(_return_df=True))
