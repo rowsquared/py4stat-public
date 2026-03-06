@@ -1,0 +1,11 @@
+hh_id,province_code,province_name,district,urban_rural,hh_size,income_dkw,survey_date
+HH0001,CTR,Central Province,Numerica Urban,Urban,4,65000,2026-01-12
+HH0002,STH,Southern Province,Median Urban,Urban,3,72000,2026-01-13
+HH0003,NTH,Northern Province,Polaris District,Rural,6,38000,2026-01-14
+HH0004,EST,Eastern Province,Outlier Coastal,Urban,2,,2026-01-15
+HH0005,WST,Western Province,Confidence District,Rural,5,41000,2026-01-16
+HH0006,LKS,Lakeside Province,Interval District,Rural,0,29000,2026-01-17
+HH0007,CTR,Central Province,Range District,Rural,7,1200000,2026-01-18
+HH0008,EST,Eastern Province,Kurtosis Bay,Urban,3,54000,2026-01-19
+HH0008,EST,Eastern Province,Kurtosis Bay,Urban,3,54000,2026-01-19
+HH0010,STH,Southern Province,Frequency Plains,Rural,4,50000,2026-01-21
