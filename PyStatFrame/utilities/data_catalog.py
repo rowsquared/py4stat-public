@@ -81,12 +81,14 @@ class DataCatalog:
             return pd.read_parquet(path, **kwargs)
         if file_format in {"xlsx", "excel"}:
             return pd.read_excel(path, **kwargs)
+        if file_format in {"dta", "stata"}:
+            return pd.read_stata(path, **kwargs)
         if file_format == "json":
             return pd.read_json(path, **kwargs)
 
         raise ValueError(
             f"Unsupported format '{file_format}' for dataset '{name}'. "
-            "Supported formats: csv, parquet, xlsx/excel, json."
+            "Supported formats: csv, parquet, xlsx/excel, dta/stata, json."
         )
 
     def save(self, name: str, data: pd.DataFrame, **kwargs: Any) -> Path:
@@ -111,6 +113,10 @@ class DataCatalog:
             excel_kwargs = {"index": False}
             excel_kwargs.update(kwargs)
             data.to_excel(path, **excel_kwargs)
+        elif file_format in {"dta", "stata"}:
+            stata_kwargs = {"write_index": False}
+            stata_kwargs.update(kwargs)
+            data.to_stata(path, **stata_kwargs)
         elif file_format == "json":
             json_kwargs = {"orient": "records", "indent": 2}
             json_kwargs.update(kwargs)
@@ -118,7 +124,7 @@ class DataCatalog:
         else:
             raise ValueError(
                 f"Unsupported format '{file_format}' for dataset '{name}'. "
-                "Supported formats: csv, parquet, xlsx/excel, json."
+                "Supported formats: csv, parquet, xlsx/excel, dta/stata, json."
             )
 
         return path

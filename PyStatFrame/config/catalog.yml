@@ -1,19 +1,5 @@
 # Data Catalog: Datania Quarterly Labour Force Survey
 
-raw_survey:
-  path: data/0_raw/qlfs_2026_q1.csv
-  format: csv
-  description: Raw QLFS microdata from field collection
-  read_only: true  # Protects raw data from being overwritten
-  dtypes:
-    hh_id: str
-    region_code: str
-    district_code: str
-    age: int
-    income: float
-  parse_dates:
-    - survey_date
-
 raw_households_sample:
   path: data/0_raw/datania_households_sample.csv
   format: csv
@@ -30,17 +16,9 @@ raw_households_sample:
   parse_dates:
     - survey_date
 
-clean_survey:
-  path: data/01_cleaned/qlfs_2026_q1_clean.parquet
-  format: parquet
-  description: Cleaned survey with age filter and validated income
 
-employment_analysis:
-  path: data/02_processed/employment_by_region.parquet
-  format: parquet
-  description: Intermediate analysis dataset with employment flags
-
-regional_indicators:
-  path: data/03_output/regional_indicators.csv
-  format: csv
-  description: Employment and income indicators by region
+# Example Stata dataset entry:
+# survey_stata:
+#   path: data/02_processed/qlfs_2026_q1_analysis.dta
+#   format: dta
+#   description: Analysis-ready dataset saved in Stata format
