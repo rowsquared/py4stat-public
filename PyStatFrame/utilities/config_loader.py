@@ -7,10 +7,15 @@ import yaml
 class ConfigLoader:
     """Load YAML configuration files from a project config directory.
 
-    Defaults assume a local project structure:
-    - project root: parent of `utilities/`
-    - config directory: `<project_root>/config`
-    - default config file: `<config_dir>/settings.yml`
+    How to use:
+        config = ConfigLoader("settings.yml")
+        settings = config.load()
+        min_age = config.get("cleaning.min_age")
+
+    Path defaults (no manual root path needed):
+    - project root -> parent of `utilities/`
+    - config directory -> `<project_root>/config`
+    - default config file -> `<config_dir>/settings.yml`
     """
 
     def __init__(

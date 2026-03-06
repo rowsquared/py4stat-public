@@ -16,6 +16,10 @@ raw_households_sample:
   parse_dates:
     - survey_date
 
+cleaned_households_sample:
+  path: data/01_cleaned/datania_households_sample.csv
+  format: csv
+  description: Raw sample of Datania households
 
 # Example Stata dataset entry:
 # survey_stata:

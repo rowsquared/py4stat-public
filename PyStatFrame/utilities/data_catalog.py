@@ -7,10 +7,15 @@ import yaml
 class DataCatalog:
     """Load and save datasets by key using a YAML data catalog.
 
-    Defaults assume a local project structure:
-    - project root: parent of `utilities/`
-    - config directory: `<project_root>/config`
-    - catalog file: `<config_dir>/catalog.yml`
+    How to use:
+        catalog = DataCatalog("catalog.yml")
+        df = catalog.load("raw_households_sample")
+        catalog.save("regional_indicators", df)
+
+    Path defaults (no manual root path needed):
+    - project root -> parent of `utilities/`
+    - config directory -> `<project_root>/config`
+    - catalog file -> `<config_dir>/catalog.yml`
     """
 
     def __init__(
