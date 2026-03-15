@@ -1,2 +1,0 @@
-- Regenerate geo exercises for beginner
-- some exercises seem to need a very detailed solution, which is not ideal for a beginner. We should try to find exercises that can be solved with a more intuitive approach, rather than requiring a lot of technical knowledge.
