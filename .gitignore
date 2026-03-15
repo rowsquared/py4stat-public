@@ -3,6 +3,28 @@ __pycache__/
 *.py[codz]
 *$py.class
 
+# OS-generated files
+.DS_Store
+._*
+.AppleDouble
+.LSOverride
+.Spotlight-V100/
+.Trashes/
+Thumbs.db
+Desktop.ini
+
+# Local instructions / editor metadata
+AGENTS.md
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+*.swp
+*.swo
+*~
+.direnv/
+
 # C extensions
 *.so
 
