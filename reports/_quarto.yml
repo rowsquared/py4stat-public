@@ -17,15 +17,15 @@ format:
     fig-width: 7
     fig-height: 5
     fig-dpi: 150
-  pdf:
-    documentclass: article
-    mainfont: "Roboto"
-    fontsize: 11pt
-    linestretch: 1.4
-    toc: true
-    number-sections: false
-    fig-width: 7
-    fig-height: 5
+  # pdf:
+  #   documentclass: article
+  #   mainfont: "Roboto"
+  #   fontsize: 11pt
+  #   linestretch: 1.4
+  #   toc: true
+  #   number-sections: false
+  #   fig-width: 7
+  #   fig-height: 5
 
 jupyter: python3
 
