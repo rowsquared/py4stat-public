@@ -1,0 +1,269 @@
+---
+title: "Report"
+subtitle: "Labour Force Survey — Zambia 2024"
+author: "rowsquared"
+date: today
+date-format: "MMMM D, YYYY"
+---
+
+```{python}
+#| label: setup
+import pandas as pd
+import pyreadstat
+import plotly.graph_objects as go
+import plotly.io as pio
+
+# ── Brand palette ─────────────────────────────────────────────────────
+PALETTE = ["#7BB3B2", "#65A6BD", "#C997AF", "#B8B0D3",
+           "#F4CF97", "#98B9A0", "#F6DECD"]
+
+# ── Plotly template ───────────────────────────────────────────────────
+_tpl = go.layout.Template()
+_tpl.layout = go.Layout(
+    font=dict(family="Roboto, sans-serif", size=13, color="#333"),
+    title_font=dict(size=16, color="#104C52"),
+    plot_bgcolor="white",
+    paper_bgcolor="white",
+    colorway=PALETTE,
+    xaxis=dict(showgrid=False),
+    yaxis=dict(showgrid=True, gridcolor="lightgray", gridwidth=0.5),
+    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+    margin=dict(l=60, r=30, t=60, b=40),
+)
+pio.templates["brand"] = _tpl
+pio.templates.default = "brand"
+
+# ── Toolbar config ────────────────────────────────────────────────────
+PLOTLY_CONFIG = {
+    "displaylogo": False,
+    "modeBarButtonsToRemove": ["select2d", "lasso2d", "autoScale2d"],
+    "toImageButtonOptions": {"format": "png", "width": 1200, "height": 700, "scale": 2},
+}
+```
+
+```{python}
+#| label: load-data
+df, metadata = pyreadstat.read_sav("../../data/zambia/ZM_LFS_DATASET2024_Annual_10percent.sav")
+
+vvl = metadata.variable_value_labels  # value labels lookup
+
+# Decode categorical columns used throughout
+df["gender"]    = df["A2"].map(vvl["A2"])
+df["education"] = df["B6"].map(vvl["B6"])
+df["province"]  = df["PROV"].map(vvl.get("PROV", {})).fillna(df["PROV"].astype(str))
+```
+
+## Introduction
+
+This report summarises key findings from the **Zambia Labour Force Survey 2024**.
+It covers the demographic profile of the survey population — age structure,
+gender balance, education attainment, and a provincial breakdown — based on the
+annual 10 % sample.
+
+::: {.callout-note}
+All charts are based on unweighted sample counts unless stated otherwise.
+:::
+
+---
+
+## Demographics
+
+### Age Distribution
+
+The survey covers respondents across a wide age range. The histogram below shows how the sample is distributed by single year of age, with a dashed line marking the median.
+
+```{python}
+#| label: fig-age-hist
+#| fig-cap: "Distribution of respondent ages with median reference line"
+
+age = df["A3"].dropna()
+median_age = age.median()
+
+fig = go.Figure(
+    go.Histogram(x=age, nbinsx=20, marker_color=PALETTE[0], name="Age")
+)
+fig.add_vline(
+    x=median_age, line_dash="dash", line_color="red",
+    annotation_text=f"Median: {median_age:.0f}",
+    annotation_position="top right",
+)
+fig.update_layout(title="Age Distribution", xaxis_title="Age", yaxis_title="Count")
+fig.show(config=PLOTLY_CONFIG)
+```
+
+### Population Pyramid
+
+Breaking the age distribution down by gender reveals the demographic structure of the sample. Each bar represents a five-year cohort, with males shown to the left and females to the right.
+
+```{python}
+#| label: fig-pyramid
+#| fig-cap: "Age pyramid by five-year cohort"
+
+bins       = list(range(0, 85, 5))
+age_labels = [f"{b}–{b+4}" for b in bins[:-1]]
+
+pyr = df[["gender", "A3"]].dropna().copy()
+pyr["age_group"] = pd.cut(pyr["A3"], bins=bins, labels=age_labels, right=False)
+
+male   = pyr[pyr["gender"] == "Male"].groupby("age_group", observed=True).size()
+female = pyr[pyr["gender"] == "Female"].groupby("age_group", observed=True).size()
+
+fig = go.Figure()
+fig.add_trace(go.Bar(
+    y=age_labels,
+    x=-male.reindex(age_labels, fill_value=0).values,
+    name="Male", orientation="h", marker_color=PALETTE[0],
+))
+fig.add_trace(go.Bar(
+    y=age_labels,
+    x=female.reindex(age_labels, fill_value=0).values,
+    name="Female", orientation="h", marker_color=PALETTE[2],
+))
+fig.update_layout(
+    title="Age Pyramid",
+    xaxis_title="Population Count",
+    barmode="overlay",
+    bargap=0.1,
+    height=600,
+)
+fig.show(config=PLOTLY_CONFIG)
+```
+
+### Gender Split
+
+The donut chart below shows the overall share of male and female respondents in the sample.
+
+```{python}
+#| label: fig-gender
+#| fig-cap: "Share of respondents by gender"
+
+gender_counts = df["gender"].value_counts()
+
+fig = go.Figure(go.Pie(
+    labels=gender_counts.index,
+    values=gender_counts.values,
+    hole=0.4,
+    marker=dict(colors=PALETTE[:2], line=dict(color="white", width=1.5)),
+    textinfo="percent+label",
+))
+fig.update_layout(title="Population by Gender")
+fig.show(config=PLOTLY_CONFIG)
+```
+
+---
+
+## Education
+
+### Highest Level Completed
+
+The chart below ranks education levels by the number of respondents who report each as their highest completed qualification, from least to most common.
+
+```{python}
+#| label: fig-education
+#| fig-cap: "Number of respondents by highest completed education level"
+
+edu = df["education"].value_counts().sort_values()
+
+fig = go.Figure(go.Bar(
+    y=edu.index, x=edu.values, orientation="h",
+    marker_color=PALETTE[0],
+    text=edu.values, textposition="outside",
+))
+fig.update_layout(
+    title="Highest Education Level Completed",
+    xaxis_title="Number of respondents",
+    height=max(400, len(edu) * 32),
+)
+fig.show(config=PLOTLY_CONFIG)
+```
+
+### Education by Gender — Summary Table
+
+The table below cross-tabulates education level against gender, showing absolute counts and a row total. Rows are sorted by total respondents in descending order.
+
+```{python}
+#| label: tbl-education-gender
+#| fig-cap: "Respondent counts by education level and gender"
+
+pivot = (
+    df.dropna(subset=["education", "gender"])
+    .pivot_table(index="education", columns="gender", aggfunc="size", fill_value=0)
+    .assign(Total=lambda d: d.sum(axis=1))
+    .sort_values("Total", ascending=False)
+    .reset_index()
+)
+
+cols   = list(pivot.columns)
+header_vals = [c if c != "education" else "Education level" for c in cols]
+
+# Alternate row fill for readability
+n_rows    = len(pivot)
+fill_odd  = ["#f0f8f8"] * n_rows   # light teal tint
+fill_even = ["white"]   * n_rows
+row_fills = [fill_odd[i] if i % 2 == 0 else fill_even[i] for i in range(n_rows)]
+
+fig = go.Figure(go.Table(
+    columnwidth=[250] + [80] * (len(cols) - 1),
+    header=dict(
+        values=[f"<b>{h}</b>" for h in header_vals],
+        fill_color="#104C52",
+        font=dict(color="white", size=13),
+        align=["left"] + ["center"] * (len(cols) - 1),
+        height=36,
+    ),
+    cells=dict(
+        values=[pivot[c].tolist() for c in cols],
+        fill_color=[row_fills] * len(cols),
+        font=dict(color="#333", size=12),
+        align=["left"] + ["center"] * (len(cols) - 1),
+        height=30,
+    ),
+))
+fig.update_layout(
+    title="Education Level by Gender",
+    margin=dict(l=10, r=10, t=60, b=10),
+    height=80 + len(pivot) * 32,
+)
+fig.show(config=PLOTLY_CONFIG)
+```
+
+### Education by Gender — Crosstab
+
+The same data as a formatted crosstab, with row percentages in parentheses.
+
+```{python}
+#| label: tbl-crosstab
+cross = pd.crosstab(df["education"], df["gender"], margins=True, margins_name="Total")
+
+pct = cross.div(cross["Total"], axis=0).mul(100).round(1)
+display = cross.copy().astype(object)
+for col in [c for c in cross.columns if c != "Total"]:
+    display[col] = cross[col].astype(str) + " (" + pct[col].astype(str) + "%)"
+
+display.style.format(na_rep="—")
+```
+
+---
+
+## Provincial Profile
+
+The sample spans all provinces of Zambia. The chart below shows how respondents are distributed across provinces, which reflects both population size and sampling design.
+
+```{python}
+#| label: fig-province
+#| fig-cap: "Sample size by province"
+
+prov_counts = df["province"].value_counts().sort_values()
+
+fig = go.Figure(go.Bar(
+    y=prov_counts.index, x=prov_counts.values, orientation="h",
+    marker_color=PALETTE[1],
+    text=prov_counts.values, textposition="outside",
+))
+fig.update_layout(
+    title="Respondents by Province",
+    xaxis_title="Count",
+    height=max(350, len(prov_counts) * 36),
+)
+fig.show(config=PLOTLY_CONFIG)
+```
