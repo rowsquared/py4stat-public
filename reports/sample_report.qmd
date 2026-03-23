@@ -43,7 +43,8 @@ PLOTLY_CONFIG = {
 
 ```{python}
 #| label: load-data
-df, metadata = pyreadstat.read_sav("../../data/zambia/ZM_LFS_DATASET2024_Annual_10percent.sav")
+df, metadata = pyreadstat.read_sav("../data/0_raw/ZM_LFS_DATASET2024_Annual_10percent.sav")
+
 
 vvl = metadata.variable_value_labels  # value labels lookup
 
@@ -264,6 +265,75 @@ fig.update_layout(
     title="Respondents by Province",
     xaxis_title="Count",
     height=max(350, len(prov_counts) * 36),
+)
+fig.show(config=PLOTLY_CONFIG)
+```
+
+---
+
+## Employment Overview
+
+The panel below combines four views of the labour market: contract type, the ten most common industries, the ten most common occupations, and whether workers want more paid hours.
+
+```{python}
+#| label: fig-employment
+#| fig-cap: "Employment overview — contract type, industry, occupation, and desire for more hours"
+from plotly.subplots import make_subplots
+
+def shorten(label, max_len=28):
+    return label if len(label) <= max_len else label[:max_len - 1] + "…"
+
+contract   = df["D18"].map(vvl["D18"]).value_counts()
+industry   = df["INDUSTRY1"].map(vvl["INDUSTRY1"]).value_counts().head(10)
+occupation = df["occupation1"].map(vvl["occupation1"]).value_counts().head(10)
+wants_more = df["E5"].map(vvl["E5"]).value_counts()
+
+contract.index   = [shorten(l) for l in contract.index]
+industry.index   = [shorten(l) for l in industry.index]
+occupation.index = [shorten(l) for l in occupation.index]
+wants_more.index = [shorten(l, 22) for l in wants_more.index]
+
+fig = make_subplots(
+    rows=2, cols=2,
+    subplot_titles=("Contract Type", "Top 10 Industries",
+                    "Top 10 Occupations", "Wants More Work Hours?"),
+    specs=[[{"type": "bar"}, {"type": "bar"}],
+           [{"type": "bar"}, {"type": "pie"}]],
+    horizontal_spacing=0.22,
+    vertical_spacing=0.18,
+)
+
+fig.add_trace(go.Bar(
+    y=contract.index, x=contract.values, orientation="h",
+    marker_color=PALETTE[0], showlegend=False,
+    text=contract.values, textposition="outside",
+), row=1, col=1)
+
+fig.add_trace(go.Bar(
+    y=industry.index, x=industry.values, orientation="h",
+    marker_color=PALETTE[1], showlegend=False,
+    text=industry.values, textposition="outside",
+), row=1, col=2)
+
+fig.add_trace(go.Bar(
+    y=occupation.index, x=occupation.values, orientation="h",
+    marker_color=PALETTE[2], showlegend=False,
+    text=occupation.values, textposition="outside",
+), row=2, col=1)
+
+fig.add_trace(go.Pie(
+    labels=wants_more.index, values=wants_more.values,
+    marker=dict(colors=PALETTE[:len(wants_more)]),
+    textinfo="percent+label", showlegend=False,
+    hole=0.35,
+), row=2, col=2)
+
+fig.update_xaxes(showgrid=False)
+fig.update_yaxes(tickfont=dict(size=11))
+fig.update_layout(
+    title="Employment Type Overview",
+    height=780,
+    margin=dict(l=20, r=20, t=80, b=20),
 )
 fig.show(config=PLOTLY_CONFIG)
 ```

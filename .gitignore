@@ -230,3 +230,5 @@ __marimo__/
 
 /PyStatFrame/*
 /exercises/*
+reports/output/
+reports/.quarto/
