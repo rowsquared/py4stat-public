@@ -23,10 +23,14 @@ class DataCatalog:
 
     Optional keys supported per catalog entry
     ------------------------------------------
-    encoding   : str  — character encoding for text-based formats (csv,
-                        json).
-                        Defaults to "utf-8". Not applicable to binary formats
-                        (parquet, excel, stata).
+    encoding   : str  — character encoding. Behaviour depends on format:
+                        csv / json  → applied directly; defaults to "utf-8".
+                        spss        → passed to pyreadstat; omit to let the
+                                      library auto-detect from the file header
+                                      (recommended unless the header is wrong).
+                        parquet / excel / stata → binary formats; encoding
+                                      is embedded in the file and this key
+                                      is ignored.
     columns    : list — column names to load. Supported by csv, parquet,
                         excel, spss, and stata.
     sheet_name : str or int — sheet to load from an Excel file. Defaults to 0
@@ -129,10 +133,10 @@ class DataCatalog:
             logger.warning("Dataset '%s' not found at: %s", name, path)
             return pd.DataFrame()
 
-        # encoding — used by text-based formats (csv, json).
-        # Defaults to utf-8. Override per dataset in catalog.yaml:
-        #   encoding: latin-1
-        encoding = entry.get("encoding", "utf-8")
+        # encoding — read from the catalog entry with no default.
+        # Each format below handles the None case in the way that makes most
+        # sense for that format (see comments per format).
+        encoding = entry.get("encoding")
 
         # columns — load only a subset of columns.
         # Supported by csv, parquet, excel, spss, stata.
@@ -141,41 +145,48 @@ class DataCatalog:
         columns = entry.get("columns")
 
         if file_format == "csv":
+            # Default to utf-8 when not specified.
             return pd.read_csv(
                 path,
                 dtype=entry.get("dtypes"),
                 parse_dates=entry.get("parse_dates"),
-                encoding=encoding,
+                encoding=encoding or "utf-8",
                 usecols=columns,
             )
 
         if file_format == "parquet":
-            # parquet is a binary format — encoding is handled by the file
-            # itself and does not need to be specified.
+            # Parquet is a binary columnar format. Encoding is defined inside
+            # the file and cannot be overridden — the catalog key is ignored.
             return pd.read_parquet(path, columns=columns)
 
         if file_format == "excel":
-            # sheet_name defaults to 0 (the first sheet). Use a sheet name
-            # string or a zero-based integer index.
-            #   sheet_name: "Data"   or   sheet_name: 1
+            # Excel (.xlsx) is a binary format. Encoding is not applicable.
+            # sheet_name defaults to 0 (first sheet). Accepts a name string
+            # or a zero-based integer index:  sheet_name: "Data"  or  1
             sheet_name = entry.get("sheet_name", 0)
             return pd.read_excel(path, sheet_name=sheet_name, usecols=columns)
 
         if file_format == "spss":
-            # SPSS (.sav) files store encoding metadata internally.
-            # The pandas API does not expose an encoding parameter for SPSS;
-            # the underlying pyreadstat library reads it from the file header.
-            return pd.read_spss(path, usecols=columns)
+            # Use pyreadstat directly so we can pass encoding.
+            # When encoding is None, pyreadstat auto-detects it from the file
+            # header — correct for most SPSS files. Set it explicitly
+            # only when the header metadata is wrong:  encoding: latin-1
+            import pyreadstat
+            df, _ = pyreadstat.read_sav(
+                str(path), encoding=encoding, usecols=columns
+            )
+            return df
 
         if file_format == "stata":
-            # Stata (.dta) files are binary and self-describing.
+            # Stata (.dta) is a binary format. Encoding is embedded in the
+            # file and is handled automatically — the catalog key is ignored.
             return pd.read_stata(path, columns=columns)
 
         if file_format == "json":
-            # JSON is text-based, so encoding applies.
+            # Default to utf-8 when not specified.
             # Column selection is not supported by read_json directly;
             # filter columns after loading if needed.
-            return pd.read_json(path, encoding=encoding)
+            return pd.read_json(path, encoding=encoding or "utf-8")
 
         logger.warning("Unsupported format: %s", file_format)
         return pd.DataFrame()
@@ -203,26 +214,35 @@ class DataCatalog:
         # Create the output folder if it does not exist yet.
         path.parent.mkdir(parents=True, exist_ok=True)
 
+        # encoding — used by text-based formats (csv, json).
+        # Defaults to utf-8 when not set in the catalog entry.
+        encoding = entry.get("encoding") or "utf-8"
+
         if file_format == "csv":
-            encoding = entry.get("encoding", "utf-8")
             df.to_csv(path, index=False, encoding=encoding)
             return
 
         if file_format == "parquet":
+            # Binary format — encoding is not applicable.
             df.to_parquet(path, index=False)
             return
 
         if file_format == "excel":
+            # Binary format — encoding is not applicable.
             df.to_excel(path, index=False)
             return
 
         if file_format == "stata":
+            # Binary format — encoding is not applicable.
             df.to_stata(path, write_index=False)
             return
 
         if file_format == "json":
-            encoding = entry.get("encoding", "utf-8")
-            df.to_json(path, orient="records", indent=2)
+            # to_json() has no encoding parameter, so write via open()
+            # to ensure the correct encoding is applied.
+            json_str = df.to_json(orient="records", indent=2)
+            with open(path, "w", encoding=encoding) as f:
+                f.write(json_str)
             return
 
         logger.warning("Unsupported format for saving: %s", file_format)

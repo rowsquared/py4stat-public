@@ -45,13 +45,15 @@ Supported formats: `csv`, `parquet`, `excel`, `spss`, `stata`, `json`.
 
 The catalog entry can specify optional loading options:
 
-| Key          | Applies to                        | Description                                      |
-|--------------|-----------------------------------|--------------------------------------------------|
-| `encoding`   | csv, json                         | Character encoding. Defaults to `utf-8`.         |
-| `columns`    | csv, parquet, excel, spss, stata  | List of column names to load (subset of file).   |
-| `sheet_name` | excel                             | Sheet name or zero-based index. Defaults to `0`. |
-| `dtypes`     | csv                               | Column name → pandas dtype mapping.              |
-| `parse_dates`| csv                               | List of column names to parse as dates.          |
+| Key          | Applies to                        | Description                                                          |
+|--------------|-----------------------------------|----------------------------------------------------------------------|
+| `encoding`   | csv, json                         | Character encoding. Defaults to `utf-8`.                             |
+|              | spss                              | Passed to pyreadstat. Omit to auto-detect from file header.          |
+|              | parquet, excel, stata             | Binary formats — key is ignored.                                     |
+| `columns`    | csv, parquet, excel, spss, stata  | List of column names to load (subset of file).                       |
+| `sheet_name` | excel                             | Sheet name or zero-based index. Defaults to `0`.                     |
+| `dtypes`     | csv                               | Column name → pandas dtype mapping.                                  |
+| `parse_dates`| csv                               | List of column names to parse as dates.                              |
 
 ---
 
