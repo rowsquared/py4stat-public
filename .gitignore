@@ -232,3 +232,5 @@ __marimo__/
 /exercises/*
 reports/output/
 reports/.quarto/
+
+data/0_raw/*
