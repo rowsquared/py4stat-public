@@ -234,4 +234,5 @@ reports/output/
 reports/.quarto/
 
 data/0_raw/*
-!/data/0_raw/tanzania/
+/notebooks/lessons/exports/cpi_r_v3_Tabular_20260326T103006/
+/data/
