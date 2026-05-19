@@ -10,8 +10,10 @@ date-format: "MMMM D, YYYY"
 #| label: setup
 import sys
 from pathlib import Path
+import os
 
-PROJECT_ROOT = Path(__file__).parent.parent
+DOC_DIR = Path(os.environ["QUARTO_DOCUMENT_PATH"])
+PROJECT_ROOT = DOC_DIR.parent
 sys.path.append(str(PROJECT_ROOT))
 
 import pandas as pd
