@@ -8,6 +8,12 @@ date-format: "MMMM D, YYYY"
 
 ```{python}
 #| label: setup
+import sys
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).parent.parent
+sys.path.append(str(PROJECT_ROOT))
+
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.io as pio
