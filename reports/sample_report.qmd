@@ -1,6 +1,6 @@
 ---
 title: "Report"
-subtitle: "Labour Force Survey — Zambia 2024"
+subtitle: "Continuous Enterprise Survey — Tanzania 2025"
 author: "rowsquared"
 date: today
 date-format: "MMMM D, YYYY"
@@ -9,9 +9,11 @@ date-format: "MMMM D, YYYY"
 ```{python}
 #| label: setup
 import pandas as pd
-import pyreadstat
 import plotly.graph_objects as go
 import plotly.io as pio
+from plotly.subplots import make_subplots
+
+from src.utilities.data_paths import DataPaths
 
 # ── Brand palette ─────────────────────────────────────────────────────
 PALETTE = ["#7BB3B2", "#65A6BD", "#C997AF", "#B8B0D3",
@@ -43,23 +45,20 @@ PLOTLY_CONFIG = {
 
 ```{python}
 #| label: load-data
-df, metadata = pyreadstat.read_sav("../data/0_raw/ZM_LFS_DATASET2024_Annual_10percent.sav")
+paths = DataPaths()
+DATASET_PATH = paths.cleaned / 'ces_data.xlsx'
+# Load the analytical parquet from the previous exercise
+df = pd.read_excel(DATASET_PATH)
 
-
-vvl = metadata.variable_value_labels  # value labels lookup
-
-# Decode categorical columns used throughout
-df["gender"]    = df["A2"].map(vvl["A2"])
-df["education"] = df["B6"].map(vvl["B6"])
-df["province"]  = df["PROV"].map(vvl.get("PROV", {})).fillna(df["PROV"].astype(str))
+print("Shape:", df.shape)
+df.head(3)
 ```
 
 ## Introduction
 
-This report summarises key findings from the **Zambia Labour Force Survey 2024**.
-It covers the demographic profile of the survey population — age structure,
-gender balance, education attainment, and a provincial breakdown — based on the
-annual 10 % sample.
+This report presents selected findings from the **Tanzania Continuous Enterprise Survey (CES) 2025**.
+It provides an overview of the sampled establishments — their sectoral and regional spread,
+size composition, and the business obstacles they face.
 
 ::: {.callout-note}
 All charts are based on unweighted sample counts unless stated otherwise.
@@ -67,273 +66,173 @@ All charts are based on unweighted sample counts unless stated otherwise.
 
 ---
 
-## Demographics
+## Establishments by Sector
 
-### Age Distribution
-
-The survey covers respondents across a wide age range. The histogram below shows how the sample is distributed by single year of age, with a dashed line marking the median.
+The chart below shows how sampled firms are distributed across broad economic sectors,
+ranked from the largest to the smallest group.
 
 ```{python}
-#| label: fig-age-hist
-#| fig-cap: "Distribution of respondent ages with median reference line"
+#| label: fig-sector
+#| fig-cap: "Number of establishments by broad sector"
 
-age = df["A3"].dropna()
-median_age = age.median()
+sector = df["sector_name"].value_counts().sort_values()
 
 fig = go.Figure(
-    go.Histogram(x=age, nbinsx=20, marker_color=PALETTE[0], name="Age")
+    go.Bar(
+        y=sector.index,
+        x=sector.values,
+        orientation="h",
+        marker_color=PALETTE[0],
+        text=sector.values,
+        textposition="outside",
+    )
 )
-fig.add_vline(
-    x=median_age, line_dash="dash", line_color="red",
-    annotation_text=f"Median: {median_age:.0f}",
-    annotation_position="top right",
-)
-fig.update_layout(title="Age Distribution", xaxis_title="Age", yaxis_title="Count")
-fig.show(config=PLOTLY_CONFIG)
-```
-
-### Population Pyramid
-
-Breaking the age distribution down by gender reveals the demographic structure of the sample. Each bar represents a five-year cohort, with males shown to the left and females to the right.
-
-```{python}
-#| label: fig-pyramid
-#| fig-cap: "Age pyramid by five-year cohort"
-
-bins       = list(range(0, 85, 5))
-age_labels = [f"{b}–{b+4}" for b in bins[:-1]]
-
-pyr = df[["gender", "A3"]].dropna().copy()
-pyr["age_group"] = pd.cut(pyr["A3"], bins=bins, labels=age_labels, right=False)
-
-male   = pyr[pyr["gender"] == "Male"].groupby("age_group", observed=True).size()
-female = pyr[pyr["gender"] == "Female"].groupby("age_group", observed=True).size()
-
-fig = go.Figure()
-fig.add_trace(go.Bar(
-    y=age_labels,
-    x=-male.reindex(age_labels, fill_value=0).values,
-    name="Male", orientation="h", marker_color=PALETTE[0],
-))
-fig.add_trace(go.Bar(
-    y=age_labels,
-    x=female.reindex(age_labels, fill_value=0).values,
-    name="Female", orientation="h", marker_color=PALETTE[2],
-))
 fig.update_layout(
-    title="Age Pyramid",
-    xaxis_title="Population Count",
-    barmode="overlay",
-    bargap=0.1,
-    height=600,
-)
-fig.show(config=PLOTLY_CONFIG)
-```
-
-### Gender Split
-
-The donut chart below shows the overall share of male and female respondents in the sample.
-
-```{python}
-#| label: fig-gender
-#| fig-cap: "Share of respondents by gender"
-
-gender_counts = df["gender"].value_counts()
-
-fig = go.Figure(go.Pie(
-    labels=gender_counts.index,
-    values=gender_counts.values,
-    hole=0.4,
-    marker=dict(colors=PALETTE[:2], line=dict(color="white", width=1.5)),
-    textinfo="percent+label",
-))
-fig.update_layout(title="Population by Gender")
-fig.show(config=PLOTLY_CONFIG)
-```
-
----
-
-## Education
-
-### Highest Level Completed
-
-The chart below ranks education levels by the number of respondents who report each as their highest completed qualification, from least to most common.
-
-```{python}
-#| label: fig-education
-#| fig-cap: "Number of respondents by highest completed education level"
-
-edu = df["education"].value_counts().sort_values()
-
-fig = go.Figure(go.Bar(
-    y=edu.index, x=edu.values, orientation="h",
-    marker_color=PALETTE[0],
-    text=edu.values, textposition="outside",
-))
-fig.update_layout(
-    title="Highest Education Level Completed",
-    xaxis_title="Number of respondents",
-    height=max(400, len(edu) * 32),
-)
-fig.show(config=PLOTLY_CONFIG)
-```
-
-### Education by Gender — Summary Table
-
-The table below cross-tabulates education level against gender, showing absolute counts and a row total. Rows are sorted by total respondents in descending order.
-
-```{python}
-#| label: tbl-education-gender
-#| fig-cap: "Respondent counts by education level and gender"
-
-pivot = (
-    df.dropna(subset=["education", "gender"])
-    .pivot_table(index="education", columns="gender", aggfunc="size", fill_value=0)
-    .assign(Total=lambda d: d.sum(axis=1))
-    .sort_values("Total", ascending=False)
-    .reset_index()
-)
-
-cols   = list(pivot.columns)
-header_vals = [c if c != "education" else "Education level" for c in cols]
-
-# Alternate row fill for readability
-n_rows    = len(pivot)
-fill_odd  = ["#f0f8f8"] * n_rows   # light teal tint
-fill_even = ["white"]   * n_rows
-row_fills = [fill_odd[i] if i % 2 == 0 else fill_even[i] for i in range(n_rows)]
-
-fig = go.Figure(go.Table(
-    columnwidth=[250] + [80] * (len(cols) - 1),
-    header=dict(
-        values=[f"<b>{h}</b>" for h in header_vals],
-        fill_color="#104C52",
-        font=dict(color="white", size=13),
-        align=["left"] + ["center"] * (len(cols) - 1),
-        height=36,
-    ),
-    cells=dict(
-        values=[pivot[c].tolist() for c in cols],
-        fill_color=[row_fills] * len(cols),
-        font=dict(color="#333", size=12),
-        align=["left"] + ["center"] * (len(cols) - 1),
-        height=30,
-    ),
-))
-fig.update_layout(
-    title="Education Level by Gender",
-    margin=dict(l=10, r=10, t=60, b=10),
-    height=80 + len(pivot) * 32,
-)
-fig.show(config=PLOTLY_CONFIG)
-```
-
-### Education by Gender — Crosstab
-
-The same data as a formatted crosstab, with row percentages in parentheses.
-
-```{python}
-#| label: tbl-crosstab
-cross = pd.crosstab(df["education"], df["gender"], margins=True, margins_name="Total")
-
-pct = cross.div(cross["Total"], axis=0).mul(100).round(1)
-display = cross.copy().astype(object)
-for col in [c for c in cross.columns if c != "Total"]:
-    display[col] = cross[col].astype(str) + " (" + pct[col].astype(str) + "%)"
-
-display.style.format(na_rep="—")
-```
-
----
-
-## Provincial Profile
-
-The sample spans all provinces of Zambia. The chart below shows how respondents are distributed across provinces, which reflects both population size and sampling design.
-
-```{python}
-#| label: fig-province
-#| fig-cap: "Sample size by province"
-
-prov_counts = df["province"].value_counts().sort_values()
-
-fig = go.Figure(go.Bar(
-    y=prov_counts.index, x=prov_counts.values, orientation="h",
-    marker_color=PALETTE[1],
-    text=prov_counts.values, textposition="outside",
-))
-fig.update_layout(
-    title="Respondents by Province",
-    xaxis_title="Count",
-    height=max(350, len(prov_counts) * 36),
+    title="Number of establishments by broad sector",
+    xaxis_title="Number of firms",
+    height=max(400, len(sector) * 30),
 )
 fig.show(config=PLOTLY_CONFIG)
 ```
 
 ---
 
-## Employment Overview
+## Establishment Size
 
-The panel below combines four views of the labour market: contract type, the ten most common industries, the ten most common occupations, and whether workers want more paid hours.
+The donut chart shows how establishments are divided across four size bands —
+Micro, Small, Medium, and Large — based on the number of workers.
 
 ```{python}
-#| label: fig-employment
-#| fig-cap: "Employment overview — contract type, industry, occupation, and desire for more hours"
-from plotly.subplots import make_subplots
+#| label: fig-size
+#| fig-cap: "Share of establishments by size band"
 
-def shorten(label, max_len=28):
-    return label if len(label) <= max_len else label[:max_len - 1] + "…"
+size_counts = df["size_band"].value_counts()
 
-contract   = df["D18"].map(vvl["D18"]).value_counts()
-industry   = df["INDUSTRY1"].map(vvl["INDUSTRY1"]).value_counts().head(10)
-occupation = df["occupation1"].map(vvl["occupation1"]).value_counts().head(10)
-wants_more = df["E5"].map(vvl["E5"]).value_counts()
+fig = go.Figure(
+    go.Pie(
+        labels=size_counts.index,
+        values=size_counts.values,
+        hole=0.4,
+        marker=dict(colors=PALETTE[:4], line=dict(color="white", width=1.5)),
+        textinfo="percent+label",
+    )
+)
+fig.update_layout(title="Establishment size distribution")
+fig.show(config=PLOTLY_CONFIG)
+```
 
-contract.index   = [shorten(l) for l in contract.index]
-industry.index   = [shorten(l) for l in industry.index]
-occupation.index = [shorten(l) for l in occupation.index]
-wants_more.index = [shorten(l, 22) for l in wants_more.index]
+---
 
+## The Tanzanian Firm Landscape
+
+The panel below combines four complementary views of the surveyed establishments:
+legal form, top sectors, top regions, and export orientation.
+
+```{python}
+#| label: fig-landscape
+#| fig-cap: "Tanzanian establishments at a glance — legal status, top sectors, top regions, and export status"
+
+# ── Prepare ──────────────────────────────────────────────────────────
+legal      = df["legal_status_name"].value_counts().sort_values()
+sector_top = df["sector_name"].value_counts().head(10).sort_values()
+region_top = df["region_name"].value_counts().head(10).sort_values()
+exporter   = (
+    df["is_exporter"]
+    .map({True: "Exporter", False: "Non-exporter"})
+    .value_counts()
+)
+
+# ── Plot ─────────────────────────────────────────────────────────────
 fig = make_subplots(
     rows=2, cols=2,
-    subplot_titles=("Contract Type", "Top 10 Industries",
-                    "Top 10 Occupations", "Wants More Work Hours?"),
-    specs=[[{"type": "bar"}, {"type": "bar"}],
-           [{"type": "bar"}, {"type": "pie"}]],
+    subplot_titles=(
+        "Legal status", "Top 10 sectors",
+        "Top 10 regions", "Exporters vs non-exporters",
+    ),
+    specs=[
+        [{"type": "bar"}, {"type": "bar"}],
+        [{"type": "bar"}, {"type": "pie"}],
+    ],
     horizontal_spacing=0.22,
     vertical_spacing=0.18,
 )
 
-fig.add_trace(go.Bar(
-    y=contract.index, x=contract.values, orientation="h",
-    marker_color=PALETTE[0], showlegend=False,
-    text=contract.values, textposition="outside",
-), row=1, col=1)
-
-fig.add_trace(go.Bar(
-    y=industry.index, x=industry.values, orientation="h",
-    marker_color=PALETTE[1], showlegend=False,
-    text=industry.values, textposition="outside",
-), row=1, col=2)
-
-fig.add_trace(go.Bar(
-    y=occupation.index, x=occupation.values, orientation="h",
-    marker_color=PALETTE[2], showlegend=False,
-    text=occupation.values, textposition="outside",
-), row=2, col=1)
-
-fig.add_trace(go.Pie(
-    labels=wants_more.index, values=wants_more.values,
-    marker=dict(colors=PALETTE[:len(wants_more)]),
-    textinfo="percent+label", showlegend=False,
-    hole=0.35,
-), row=2, col=2)
+fig.add_trace(
+    go.Bar(y=legal.index, x=legal.values, orientation="h",
+           marker_color=PALETTE[0], showlegend=False),
+    row=1, col=1,
+)
+fig.add_trace(
+    go.Bar(y=sector_top.index, x=sector_top.values, orientation="h",
+           marker_color=PALETTE[1], showlegend=False),
+    row=1, col=2,
+)
+fig.add_trace(
+    go.Bar(y=region_top.index, x=region_top.values, orientation="h",
+           marker_color=PALETTE[2], showlegend=False),
+    row=2, col=1,
+)
+fig.add_trace(
+    go.Pie(
+        labels=exporter.index, values=exporter.values,
+        marker=dict(colors=PALETTE[:len(exporter)]),
+        textinfo="percent+label", showlegend=False,
+        hole=0.35,
+    ),
+    row=2, col=2,
+)
 
 fig.update_xaxes(showgrid=False)
 fig.update_yaxes(tickfont=dict(size=11))
 fig.update_layout(
-    title="Employment Type Overview",
-    height=780,
+    title="Tanzanian establishments at a glance",
+    height=800,
     margin=dict(l=20, r=20, t=80, b=20),
 )
 fig.show(config=PLOTLY_CONFIG)
 ```
+
+---
+
+## Business Obstacles
+
+The heatmap below summarises how severely establishments in each sector rate six common
+business obstacles. Values represent the mean severity score (1 = no obstacle,
+5 = very severe obstacle).
+
+```{python}
+#| label: fig-obstacles
+#| fig-cap: "Average severity of business obstacles by sector"
+
+# ── Prepare ──────────────────────────────────────────────────────────
+obstacle_cols = ["s9q11", "s12q10", "s15q8", "s16q33", "s3q33a", "s3q33b"]
+obstacle_labels = [
+    "Electricity", "Informal competition", "Access to land",
+    "Access to finance", "Labour regulations", "Workforce education",
+]
+
+heatmap_data = (
+    df.groupby("sector_name")[obstacle_cols]
+    .mean()
+    .rename(columns=dict(zip(obstacle_cols, obstacle_labels)))
+)
+
+# ── Plot ─────────────────────────────────────────────────────────────
+fig = go.Figure(
+    go.Heatmap(
+        z=heatmap_data.values,
+        x=heatmap_data.columns.tolist(),
+        y=heatmap_data.index.tolist(),
+        text=heatmap_data.round(1).values,
+        texttemplate="%{text:.1f}",
+        colorscale="YlOrRd",
+        colorbar=dict(title="Mean severity<br>(1=none, 5=very severe)"),
+    )
+)
+fig.update_layout(
+    title="Average severity of business obstacles by sector",
+    height=450,
+)
+fig.show(config=PLOTLY_CONFIG)
+```
+
