@@ -1,0 +1,60 @@
+# Data Catalog: Datania Quarterly Labour Force Survey
+#
+# Each entry registers a dataset by a logical name.
+# The DataCatalog class in src/utilities/data_catalog.py reads this file
+# and uses these settings when loading or saving data.
+#
+# Supported keys per entry:
+#
+#   path        (required) path to the file, relative to the project root
+#   format      (required) file format: csv, parquet, excel, spss, stata, json
+#   description (optional) short note on what the dataset contains
+#   encoding    (optional) character encoding for text-based formats (csv, json)
+#                          defaults to utf-8 — use e.g. latin-1 for older files
+#   columns     (optional) list of column names to load (subset of the file)
+#                          supported by csv, parquet, excel, spss, stata
+#   sheet_name  (optional) sheet to load from an Excel file; defaults to 0
+#                          (first sheet); accepts a name string or an index
+#   dtypes      (optional) column name → pandas dtype, applied when loading csv
+#                          useful for identifier columns that must stay as strings
+#   parse_dates (optional) list of column names to parse as dates, csv only
+
+
+# ---------------------------------------------------------------------------
+# Example entries showing optional loading options
+# ---------------------------------------------------------------------------
+
+# Load only selected columns from a parquet file:
+# employment_slim:
+#   path: data/2_derived/employment_by_region.parquet
+#   format: parquet
+#   description: Employment flags — region and status columns only
+#   columns: [region_code, employment_status, weight]
+
+# Excel file with a specific sheet and column subset:
+# survey_excel:
+#   path: data/0_raw/qlfs_2026_q1.xlsx
+#   format: excel
+#   description: Raw QLFS data in Excel format
+#   sheet_name: "Data"        # or use an integer index: 0, 1, 2 …
+#   columns: [hh_id, age, income, region_code]
+
+# SPSS file — encoding is read automatically from the file header:
+# survey_spss:
+#   path: data/0_raw/qlfs_2026_q1.sav
+#   format: spss
+#   description: Raw QLFS data in SPSS format
+#   columns: [hh_id, age, income, region_code]
+
+# Stata file:
+# survey_stata:
+#   path: data/2_derived/qlfs_2026_q1_analysis.dta
+#   format: stata
+#   description: Analysis-ready dataset in Stata format
+
+# CSV with non-UTF-8 encoding (common in older government files):
+# legacy_survey:
+#   path: data/0_raw/legacy_survey.csv
+#   format: csv
+#   description: Older survey file encoded in Latin-1
+#   encoding: latin-1
