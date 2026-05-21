@@ -28,9 +28,9 @@ CONFIG_DIR = PROJECT_ROOT / "config"
 # Data lifecycle folders — named with numeric prefixes so they sort in order.
 DATA_DIR = PROJECT_ROOT / "data"
 RAW_DIR = DATA_DIR / "0_raw"        # original source data, never modified
-CLEANED_DIR = DATA_DIR / "1_cleaned"  # validated and cleaned
-DERIVED_DIR = DATA_DIR / "2_derived"  # intermediate analytical datasets
-FINAL_DIR = DATA_DIR / "3_final"    # final outputs for reporting
+CLEANED_DIR = DATA_DIR / "10_cleaned"  # validated and cleaned
+DERIVED_DIR = DATA_DIR / "20_processed"  # intermediate analytical datasets
+FINAL_DIR = DATA_DIR / "3_output"    # final outputs for reporting
 
 # Other top-level folders
 REPORTS_DIR = PROJECT_ROOT / "reports"
