@@ -1,3 +1,7 @@
+# Branch-local: notebooks and Python source not committed on this branch
+notebooks/
+src/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
