@@ -1,0 +1,26 @@
+project:
+  type: website
+  output-dir: _output
+
+website:
+  title: "Household Living Conditions and Connectivity: Census 2022"
+  sidebar:
+    style: docked
+    contents:
+      - 01_tables.ipynb
+      - 02_charts.ipynb
+
+execute:
+  enabled: true
+  daemon: false
+  echo: false
+  warning: false
+
+format:
+  html:
+    theme: cosmo
+    mainfont: "Roboto"
+    linestretch: 1.6
+    toc: true
+    toc-depth: 3
+    css: styles.css

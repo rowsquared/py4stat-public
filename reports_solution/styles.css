@@ -1,0 +1,109 @@
+/* Google Font import */
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
+
+/* ── Brand colour tokens ─────────────────────────────────────────── */
+:root {
+  --color-teal-dark:    #104C52;
+  --color-teal:         #75B8BE;
+  --color-teal-mid:     #65A6BE;
+  --color-teal-soft:    #83A7B4;
+  --color-rose:         #C997AF;
+  --color-amber:        #ECAE5D;
+  --color-amber-light:  #F4CF97;
+  --color-sage:         #97B9A0;
+  --color-blush:        #F6DDCD;
+  --color-lavender:     #B9B0D3;
+
+  --text-primary:   #111111;
+  --bg-primary:     #ffffff;
+}
+
+/* ── Base typography ─────────────────────────────────────────────── */
+body {
+  font-family: 'Roboto', sans-serif;
+  color: var(--text-primary);
+  background-color: var(--bg-primary);
+}
+
+/* ── Headings ────────────────────────────────────────────────────── */
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Roboto', sans-serif;
+  font-weight: 500;
+}
+
+h1 { color: var(--color-teal-dark); border-bottom: 3px solid var(--color-teal); padding-bottom: 0.3em; }
+h2 { color: var(--color-teal-dark); border-bottom: 1px solid var(--color-teal); padding-bottom: 0.2em; }
+h3 { color: var(--color-teal-dark); }
+
+/* ── Title block ─────────────────────────────────────────────────── */
+.quarto-title-block .title {
+  color: var(--color-teal-dark);
+}
+
+/* ── Callout / highlight boxes ───────────────────────────────────── */
+.callout-note {
+  border-left: 4px solid var(--color-teal);
+  background-color: color-mix(in srgb, var(--color-teal) 12%, white);
+}
+
+.callout-warning {
+  border-left: 4px solid var(--color-amber);
+  background-color: color-mix(in srgb, var(--color-amber) 12%, white);
+}
+
+.callout-tip {
+  border-left: 4px solid var(--color-sage);
+  background-color: color-mix(in srgb, var(--color-sage) 12%, white);
+}
+
+/* ── Tables ──────────────────────────────────────────────────────── */
+table {
+  font-size: 0.9rem;
+  border-collapse: collapse;
+  width: 100%;
+}
+
+thead tr {
+  background-color: var(--color-teal-dark);
+  color: #ffffff;
+}
+
+tbody tr:nth-child(even) {
+  background-color: color-mix(in srgb, var(--color-teal) 10%, white);
+}
+
+th, td {
+  padding: 0.5em 0.75em;
+  border: 1px solid #dee2e6;
+}
+
+/* ── TOC ─────────────────────────────────────────────────────────── */
+#TOC a {
+  color: var(--color-teal-dark);
+}
+
+#TOC a:hover {
+  color: var(--color-teal);
+  text-decoration: none;
+}
+
+/* ── Links ───────────────────────────────────────────────────────── */
+a {
+  color: var(--color-teal-mid);
+}
+
+a:hover {
+  color: var(--color-teal-dark);
+}
+
+/* ── Figure captions ─────────────────────────────────────────────── */
+figcaption, .figure-caption {
+  font-size: 0.85rem;
+  color: #555;
+  font-style: italic;
+}
+
+/* ── Code blocks ─────────────────────────────────────────────────── */
+pre, code {
+  font-size: 0.88rem;
+}
