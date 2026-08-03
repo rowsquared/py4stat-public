@@ -52,7 +52,7 @@ These are non-negotiable and apply to every notebook.
 
 ## Data sources
 
-### Primary: Angola employment survey (the pipeline spine)
+### Primary: Angola employment survey, Q4 2025 (the pipeline spine)
 
 `data/0_raw/angola/employment_survey/IEA_2025_IV_TRIM_IND.sav`
 
@@ -88,6 +88,39 @@ Verified loader behaviour:
   teach `.replace()` and `.map()`.
 - `pyreadstat.read_sav(path, metadataonly=True)` exposes `column_names_to_labels`
   and `value_labels` without loading the data. This is the codebook.
+
+**Survey weights.** `POND_IEA_IV_TRIM_2025_IND` is the individual weight (no nulls,
+sum 37,645,707, mean 705.6) and `POND_IV_TRIM_2025_AF` the household weight. Every
+published rate is weighted. Unweighted counts describe the sample, not Angola, and
+the notebooks must say so.
+
+### Second wave: Angola employment survey, Q3 2025
+
+`data/0_raw/angola/employment_survey/IEA_III_TRIMESTRE_2025.sav`
+
+SPSS file, 26 MB, UTF-8, **54,963 rows x 260 columns**. Same survey, previous
+quarter. Weight column `POND_IEA_III_TRIM_2025_IND`, sum 37,337,629, within 0.8%
+of the Q4 total, so the two waves are consistent at population level.
+
+The two files are **not** drop-in compatible, which is the point of using them:
+
+| Fact | Value |
+|---|---|
+| Columns in common | **20 of 260 and 206** |
+| Naming convention | Q3 uses questionnaire codes (`S4_01`, `S8_01`, `S02_02`); Q4 uses ILO mnemonics (`ATW_PAY`, `SRH_JOB`, `DEM_AGE`) |
+| `G_12`, `G_13` (household size, adults 15+) | **fully populated in Q3** (54,963 non-null), **100% empty in Q4** |
+| `MUNIC` (284 municipalities) | Q3 only; Q4 has no municipality at all |
+| Age | Q3 `S02_02`, Q4 `DEM_AGE` |
+| Sex | Q3 `S02_01`, Q4 `DEM_SEX` |
+| Worked for pay / profit / family | Q3 `S4_01`, `S4_02`, `S4_03`; Q4 `ATW_PAY`, `ATW_PFT`, `ATW_FAM` |
+| Absent from job | Q3 `S4_09`; Q4 `ABS_JOB` |
+| Sought work | Q3 `S8_01` (last 30 days); Q4 `SRH_JOB`, `SRH_BUS` (last 4 weeks) |
+| Available to start | Q3 `S8_12`; Q4 `SRH_AVN`, with `SRH_AVL` as the follow-up |
+
+A naive `pd.concat([q3, q4])` therefore produces a ~446-column frame that is
+mostly `NaN`, which is exactly the schema drift that section 2.5 warns about, made
+concrete on real files instead of a toy example. a25 Part B builds the correct
+version by selecting and renaming a common subset first.
 
 ### Secondary: Angola international trade (a25 only)
 
@@ -152,6 +185,8 @@ a22  same .sav                                                ->  10_cleaned/ang
 a23  10_cleaned/angola_iea_2025q4_typed.csv                   ->  10_cleaned/angola_iea_2025q4_clean.csv
 a24  10_cleaned/angola_iea_2025q4_clean.csv                   ->  20_processed/angola_iea_2025q4_features.csv
 a25  20_processed/angola_iea_2025q4_features.csv              ->  20_processed/angola_iea_2025q4_analysis.csv
+     0_raw/angola/employment_survey/IEA_III_TRIMESTRE_2025.sav
+                                                              ->  20_processed/angola_iea_waves_q3_q4.csv
      0_raw/angola/international_trade/Comercio Externo de
        Bens por Países Parceiros.xlsx                         ->  20_processed/angola_trade_partners.csv
 ```
@@ -162,7 +197,7 @@ lesson. No data files are tracked in git, so checkpoints cost the repo nothing.
 
 ## Column subset and renaming
 
-a21 teaches `usecols` by cutting 206 columns to 24. a22 renames them to English
+a21 teaches `usecols` by cutting 206 columns to 29. a22 renames them to English
 snake_case. Every later notebook uses the English names.
 
 | SPSS name | English name | Notes |
@@ -183,19 +218,29 @@ snake_case. Every later notebook uses the English names.
 | `ATW_PFT` | `worked_own_account` | ILO status input |
 | `ATW_FAM` | `worked_family_business` | ILO status input |
 | `ABS_JOB` | `absent_from_job` | ILO status input |
-| `SRH_JOB` | `sought_work` | ILO status input |
-| `SRH_AVL` | `available_to_work` | ILO status input |
+| `SRH_JOB` | `sought_work` | ILO status input, sought paid work |
+| `SRH_BUS` | `sought_business` | ILO status input, tried to start a business |
+| `SRH_AVN` | `available_now` | **primary** availability question (S06_12) |
+| `SRH_AVL` | `available_2wk` | follow-up availability question (S06_13), 98.5% missing by design |
+| `SRH_DES` | `wants_work` | S06_08, drives the relaxed unemployment measure |
 | `WKT_USHRSTOT` | `hours_usual` | `997` sentinel |
 | `WKT_ACHRSTOT` | `hours_actual` | `997` sentinel |
 | `MJT_SYR` | `job_start_year` | `9997` sentinel |
-| `MJU_SIZ` | `workplace_size` | |
 | `MJJ_EMP_REL` | `employment_relation` | |
 | `GHVEDT` | `interview_date` | YYYYMMDD float |
-| `G_12` | `hh_size_reported` | 100% empty; diagnosed in a21, dropped in a23 |
-| `G_13` | `hh_adults_reported` | 100% empty; diagnosed in a21, dropped in a23 |
+| `POND_IEA_IV_TRIM_2025_IND` | `weight_ind` | individual survey weight; required for every published rate |
+| `G_12` | `hh_size_reported` | 100% empty in Q4; diagnosed in a21, dropped in a23 |
+| `G_13` | `hh_adults_reported` | 100% empty in Q4; diagnosed in a21, dropped in a23 |
 
-That is 26 entries; the two all-empty columns are loaded on purpose so learners
-find and remove them, leaving 24 working columns.
+That is 29 entries; the two all-empty columns are loaded on purpose so learners
+find and remove them, leaving 27 working columns. `MJU_SIZ` (workplace size) was
+dropped from an earlier draft of this list to make room for the availability and
+weight variables.
+
+**Availability, corrected.** An earlier draft used `SRH_AVL` alone as the
+availability criterion. That is wrong: `SRH_AVL` (S06_13) is only asked of people
+who answered no to `SRH_AVN` (S06_12), so it is 98.5% missing by design.
+Availability is `(available_now == 1) | (available_2wk == 1)`.
 
 ## Notebook contents
 
@@ -215,7 +260,7 @@ the gaps and replace **Questions:** with **Answers:**.
 3. Read the codebook with `pyreadstat.read_sav(metadataonly=True)`:
    `column_names_to_labels` and `value_labels`. This is the SPSS counterpart to
    the Stata `variable_labels()` trick in 2.1.
-4. Cut 206 columns to 26 with `usecols`. Compare `memory_usage(deep=True)` before
+4. Cut 206 columns to 29 with `usecols`. Compare `memory_usage(deep=True)` before
    and after.
 5. Inspect and standardise column names (`.str.strip()`, `.str.lower()`).
 6. `df.info()`: find the two 100%-empty columns and the skip-pattern missingness.
@@ -229,7 +274,7 @@ Writes no file.
 ### a22: Data Types and Subsetting (section 2.2)
 
 1. DataFrame vs Series, `type()` and `.dtypes`.
-2. Rename the 26 columns to the English names in the table above, via a rename
+2. Rename the 29 columns to the English names in the table above, via a rename
    dictionary.
 3. Identifiers as text: `household_id` arrives as `float64` (`8501.0`), so it goes
    `.astype('int64').astype('string')`. Same for `person_no` and `cluster_id`.
@@ -283,21 +328,52 @@ Writes no file.
    `Child`, `Youth`, `Adult`, `Elderly`, aligned to the ILO working-age definition.
 2. Map codes to labels with `.map()` and dictionaries taken from the codebook:
    `province_name`, `sex_label`, `area_label`, `education_label`.
-3. `np.select()` for ILO labour force status, three-way
-   (`Employed`, `Unemployed`, `Outside labour force`), built from
-   `worked_for_pay`, `worked_own_account`, `worked_family_business`,
-   `absent_from_job`, `sought_work`, `available_to_work`.
-4. `np.where()` for a `full_time` flag at 35 usual hours, and `.loc[]` for a
+3. `np.select()` for labour force status, three-way
+   (`Employed`, `Unemployed`, `Outside labour force`), restricted to the
+   working-age population (`age >= 15`), and built **twice** with different
+   condition sets:
+
+   - **Strict ILO-19.** Employed if `worked_for_pay == 1` or
+     `worked_own_account == 1` or `absent_from_job == 1`. Unemployed if not
+     employed **and** `(sought_work == 1) | (sought_business == 1)` **and**
+     `(available_now == 1) | (available_2wk == 1)`.
+   - **Relaxed.** Same employment rule, but the unemployed also include those
+     who are not actively searching yet report `wants_work == 1`, the
+     discouraged-worker or potential-labour-force group.
+
+4. Weighted rates using `weight_ind`, since unweighted counts describe the sample
+   and not Angola. The rate is
+   `w[unemployed].sum() / w[employed | unemployed].sum()`, which needs nothing
+   beyond pandas and numpy. Verified target values for Q4 2025, which the solution
+   notebook must reproduce:
+
+   | Measure | Weighted rate |
+   |---|---|
+   | Strict, paid/profit/absent | **14.5%** |
+   | Strict, including unpaid family work | 11.2% |
+   | **Relaxed, paid/profit/absent base** | **31.3%** |
+   | Relaxed, including unpaid family work | 23.0% |
+   | Labour force participation (strict base) | 62.8% |
+
+   The teaching point is that the definition, not the data, moves the headline by
+   roughly 20 points, and that INE's published figure of around 29 to 30% is the
+   relaxed measure. A **Questions:** block asks which number the learner would put
+   in a press release and why. Unweighted rates are shown alongside (14.3% strict,
+   for instance) so learners see the weights barely move this particular estimate
+   while remaining mandatory for correctness.
+5. `np.where()` for a `full_time` flag at 35 usual hours, and `.loc[]` for a
    conditional update of an existing column.
-5. `assign()` with dependent lambdas: `job_tenure_years = 2025 - job_start_year`,
+6. `assign()` with dependent lambdas: `job_tenure_years = 2025 - job_start_year`,
    then a band derived from it in the same call.
-6. Household size without `groupby`, which is not taught until Lesson 3:
+7. Household size without `groupby`, which is not taught until Lesson 3:
    `df['household_id'].map(df['household_id'].value_counts())`. `value_counts()`
    comes from 2.1 and `.map()` from 2.4, so this stays inside the curriculum.
-7. `apply()`: a named row-wise function computing hours per day with guards for
+   Worth noting in the notebook: Q4's own `hh_size_reported` column would have
+   given this directly, had it not been entirely empty.
+8. `apply()`: a named row-wise function computing hours per day with guards for
    missing and zero, plus a lambda for a simple one-liner, with the performance
    caveat stated.
-8. Save to `20_processed/angola_iea_2025q4_features.csv`.
+9. Save to `20_processed/angola_iea_2025q4_features.csv`.
 
 ### a25: Merging & Combining Datasets (section 2.5)
 
@@ -313,21 +389,44 @@ Writes no file.
 5. Post-merge validation: row count before and after, key uniqueness, unmatched
    rate. Save to `20_processed/angola_iea_2025q4_analysis.csv`.
 
-**Part B, the trade data.** The notebook states plainly that this is a separate
+**Part B, appending the Q3 and Q4 waves.** This replaces the synthetic
+schema-drift demo an earlier draft planned, because the two real files drift
+far more instructively than any toy example.
+
+6. Load the Q3 file, `IEA_III_TRIMESTRE_2025.sav`, with `usecols` for the labour
+   and demographic variables under their Q3 names.
+7. Attempt the naive `pd.concat([q3, q4], ignore_index=True)` and inspect the
+   result: roughly 446 columns, almost all mostly `NaN`, because only 20 column
+   names match. This is section 2.5's schema drift warning, on real files.
+8. Do it correctly: select a common subset from each wave, rename the Q3 columns
+   to the shared English names (`S02_02` to `age`, `S4_01` to `worked_for_pay`,
+   `S8_01` to `sought_work`, `S8_12` to `available_now`, and so on per the mapping
+   table above), add a `wave` column (`2025Q3`, `2025Q4`), confirm both frames have
+   identical column names and dtypes, then `concat`.
+9. Cross-wave sanity checks, which are the real payoff: weighted population totals
+   agree within 0.8% (37.34M against 37.65M), and the relaxed unemployment rate is
+   29.8% in Q3 against 31.3% in Q4. A **Questions:** block asks what it would have
+   meant if the totals had differed by 30% instead.
+10. Note the reverse-direction defect for balance: `hh_size_reported` is fully
+    populated in Q3 and entirely empty in Q4, so the newer file is not simply the
+    better one.
+
+**Part C, the trade data.** The notebook states plainly that this is a separate
 join problem on a separate dataset, not a join to the survey.
 
-6. Load `Exportação por Países (USD)` with `skiprows=2` and `dtype={'Código': str}`.
-   Strip the `\n` from `Ano\n2004`-style headers. Drop the blank row, the
-   `Total Geral` row, and the `Fonte: INE` footer, using the null `País` test.
-7. Load `Importação por Países (USD)` the same way, then merge exports against
-   imports on the country code with `suffixes=('_export', '_import')` and
-   `indicator=True`. Compute a 2025 trade balance.
-8. Audit `ZZ` (`Desconhecido`) and any `left_only` or `right_only` countries, and
-   discuss reporting them back to the data producer rather than dropping them.
-9. `pd.concat()` the Kwanza and USD export sheets with a `currency` column and
-   `ignore_index=True`, then demonstrate schema drift by renaming a column in one
-   input and observing the silently half-empty result.
-10. Save to `20_processed/angola_trade_partners.csv`.
+11. Load `Exportação por Países (USD)` with `skiprows=2` and `dtype={'Código': str}`.
+    Strip the `\n` from `Ano\n2004`-style headers. Drop the blank row, the
+    `Total Geral` row, and the `Fonte: INE` footer with a single `País.notna()`
+    filter, leaving 249 rows.
+12. Load `Importação por Países (USD)` the same way, then merge exports against
+    imports on the country code with `suffixes=('_export', '_import')` and
+    `indicator=True`. Compute a 2025 trade balance.
+13. Audit `ZZ` (`Desconhecido`) and any `left_only` or `right_only` countries, and
+    discuss reporting them back to the data producer rather than dropping them.
+14. Save to `20_processed/angola_trade_partners.csv`.
+
+The Kwanza and USD `concat` from an earlier draft is dropped; Part B covers
+`concat` and schema drift far better with real waves.
 
 ## Supporting changes
 
@@ -351,6 +450,11 @@ The solution notebooks are the tests.
 4. Each exercise notebook is checked to be valid JSON with every code cell's
    `outputs` empty, and to contain no `pathlib`, no `Path(`, and no import outside
    the allowlist.
+5. The a24 and a25 solutions additionally assert their headline statistics against
+   the verified values in this spec: strict weighted unemployment 14.5% and relaxed
+   31.3% for Q4, relaxed 29.8% for Q3, and weighted population totals within 1%
+   across waves. If a future data refresh moves these, the notebooks fail loudly
+   rather than teaching a stale number.
 
 ## Out of scope
 
@@ -359,3 +463,7 @@ The solution notebooks are the tests.
 - Lesson 2.6 (SQL with DuckDB) and the Daily Recap page.
 - The six trade workbooks other than the partner-countries one.
 - A pytest or nbmake harness. Execution is a manual gate per task.
+- Reconciling the Q3 and Q4 questionnaires beyond the common subset a25 needs.
+  The full 260-column Q3 instrument is not mapped.
+- Reproducing INE's published tables exactly. The notebooks target the correct
+  order of magnitude and the correct definitions, not certified figures.
