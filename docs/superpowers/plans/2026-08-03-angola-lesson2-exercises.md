@@ -206,6 +206,18 @@ def check_notebooks(only=None):
             for i, c in enumerate(nb["cells"]):
                 if c["cell_type"] == "code" and c.get("outputs"):
                     failures.append(f"exercise_{stem}: cell {i} has outputs")
+            # An exercise with no gaps is a copy of the solution, which the
+            # output and token checks above cannot detect.
+            text = cell_text(nb)
+            if "your code here" not in text:
+                failures.append(f"exercise_{stem}: no gaps, it is a copy of the solution")
+            if "**Questions:**" not in text:
+                failures.append(f"exercise_{stem}: no Questions block")
+            if "**Answers:**" in text:
+                failures.append(f"exercise_{stem}: contains an Answers block")
+        if os.path.exists(ex) and os.path.exists(sol):
+            if cell_text(load(ex)) == cell_text(load(sol)):
+                failures.append(f"{stem}: exercise and solution are identical")
         if os.path.exists(sol):
             nb = load(sol)
             code_cells = [c for c in nb["cells"] if c["cell_type"] == "code"]
@@ -893,23 +905,56 @@ ANSWER_TO_QUESTION = {
 }
 
 
+def normalise_keys(mapping):
+    """Strip leading and trailing newlines from every key.
+
+    nbbuild.code() and nbbuild.md() strip those newlines before storing a
+    cell's source, but the GAPS and ANSWER_TO_QUESTION keys are the raw
+    triple-quoted constants, which still carry them. Without this the lookup
+    misses on every single cell and build_exercise() silently emits a verbatim
+    copy of the solution.
+    """
+    return {key.strip("\n"): value for key, value in mapping.items()}
+
+
 def build_exercise():
+    gaps = normalise_keys(GAPS)
+    answers = normalise_keys(ANSWER_TO_QUESTION)
+
     cells = []
     for cell in SOLUTION:
         source = "".join(cell["source"])
         if cell["cell_type"] == "code":
-            cells.append(code(GAPS.get(source, source)))
+            cells.append(code(gaps.get(source, source)))
         elif source.startswith("# Solution 2.1:"):
             cells.append(md(EXERCISE_TITLE))
         else:
-            cells.append(md(ANSWER_TO_QUESTION.get(source, source)))
+            cells.append(md(answers.get(source, source)))
+
     assert_no_em_dash(cells)
+
+    # The gapping must not be a no-op. Fail loudly rather than shipping a
+    # copy of the solution as the exercise.
+    text = "\n".join("".join(c["source"]) for c in cells)
+    gap_count = text.count("your code here")
+    assert gap_count >= len(GAPS), f"only {gap_count} gaps for {len(GAPS)} entries"
+    assert "**Questions:**" in text, "Answers were not converted to Questions"
+    assert "**Answers:**" not in text, "an Answers block survived into the exercise"
+
     write_notebook(
         os.path.join(REPO, "notebooks", "exercises",
                      "exercise_a21_loading_diagnostics.ipynb"),
         cells,
     )
 ```
+
+**This `normalise_keys` helper and the three assertions are required in every
+builder from here on.** Tasks 3 to 6 define their own `GAPS` and
+`ANSWER_TO_QUESTION` dicts and must use the identical pattern, adjusting only
+the title prefix (`# Solution 2.2:` and so on) and the output path. Without the
+normalisation the exercise notebook is a verbatim copy of the solution, and
+because `check_series.py` only inspects outputs and banned tokens, the checker
+will report PASS on that broken artifact.
 
 Change the `__main__` block to call both `write_notebook(...)` for the solution
 and `build_exercise()`. Note that `build_exercise()` must run **before** the
