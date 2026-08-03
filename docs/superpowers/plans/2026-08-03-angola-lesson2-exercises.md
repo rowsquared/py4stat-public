@@ -116,7 +116,7 @@ notebooks must be revisited, not the assertion loosened.
 | Features shape | 53,297 x 39 |
 | Province codes | 10 to 30, 21 provinces |
 | Rows in the 3 provinces created in 2024 (28, 29, 30) | 6,499 (12.2%) |
-| Naive `concat` of full Q3 + Q4 features | 108,260 x 298, 115 cols >99% NaN |
+| Naive `concat` of full Q3 + Q4 features | 108,260 x 299, 115 cols >99% NaN |
 | Harmonised wave stack | 108,260 x 13 |
 | Weighted population Q3 / Q4 | 37,337,629 / 37,604,687 (0.71% apart) |
 | Harmonised strict unemployment Q3 / Q4 | 11.5% / 11.9% |
@@ -2437,7 +2437,8 @@ Three separate join problems, on purpose:
 - **Part A** attaches province names to the survey with a lookup table, using a
   deliberately outdated lookup so the audit tools have something to find.
 - **Part B** appends the Q3 2025 wave of the same survey to the Q4 wave, where
-  the two files share only 20 of their 260 and 206 columns.
+  the two raw files share only 20 of their 260 and 206 column names, and after
+  a22 renamed the Q4 columns to English even that overlap drops to zero.
 - **Part C** merges Angola's export and import tables to compute a trade balance.
 
 Part C uses a different dataset. There is no sensible join between an individual
@@ -2680,8 +2681,12 @@ naive.iloc[:3, :6]
 B2_Q = """
 **Answers:**
 
-- The result is 108,260 rows by **298 columns**, of which 115 are more than 99%
-  empty. Each wave contributed its own vocabulary and neither filled the other's.
+- The result is 108,260 rows by **299 columns**, of which 115 are more than 99%
+  empty: Q3's 260 columns plus the Q4 feature table's 39, with **zero** names in
+  common. Each wave contributed its own vocabulary and neither filled the other's.
+- The two raw files do share 20 column names, but you are not stacking raw files
+  here: a22 renamed the Q4 columns to English, so even that small overlap is gone.
+  Renaming for readability quietly destroyed the only alignment that existed.
 - Nothing warned. `concat` does exactly what it was asked; the mistake was in the
   asking.
 - The row count is right and everything else is wrong, which is the dangerous
@@ -2734,11 +2739,13 @@ print(waves['wave'].value_counts())
 B3_Q = """
 **Answers:**
 
-- 108,260 rows by 13 columns instead of 298, and no column is empty.
+- 108,260 rows by 13 columns instead of 299, and no column is empty.
 - The `wave` column is added **before** stacking, so every row carries its origin.
   Without it the two quarters are indistinguishable and the append is
   irreversible.
-- The cost is real: 12 shared variables out of 206 and 260. Harmonising across
+- The cost is real: 12 usable variables, chosen by hand, out of 206 and 260.
+  Note the three different counts in play: 20 raw names coincide, 0 survive the
+  Q4 rename, and 12 are recoverable once you map them deliberately. Harmonising across
   waves means analysing the intersection, and the intersection is small.
 """
 
